@@ -1,0 +1,41 @@
+name: Daily Data Update
+
+on:
+  schedule:
+    # 毎日 UTC 0:00 (日本時間 9:00) に実行
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 手動実行ボタン
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install -r scripts/requirements.txt
+
+      - name: Run update script
+        env:
+          # GitHub SecretsからAPIキーを読み込む
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python scripts/update_data.py
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "GiruStar-bot"
+          git config --global user.email "actions@github.com"
+          git add data.js
+          # 変更がある場合のみコミット
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update intelligence via ChatGPT [skip ci]" && git push)
