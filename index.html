@@ -33,7 +33,6 @@
         
         .status-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-left: 10px; vertical-align: middle; }
         .status-online { background: rgba(0, 255, 128, 0.2); color: #00ff80; border: 1px solid #00ff80; }
-        .status-offline { background: rgba(255, 0, 85, 0.2); color: #ff0055; border: 1px solid #ff0055; }
 
         /* 右サイドバー (ニュース) */
         .sidebar { position: absolute; top: 20px; right: 20px; bottom: 20px; width: 320px; z-index: 10; background: var(--panel-bg); backdrop-filter: blur(10px); border-radius: 8px; border: 1px solid var(--panel-border); display: flex; flex-direction: column; transition: transform 0.3s ease; }
@@ -68,7 +67,7 @@
             position: absolute;
             bottom: 20px;
             left: 20px;
-            width: 300px;
+            width: 320px;
             background: var(--panel-bg);
             backdrop-filter: blur(10px);
             border-radius: 8px;
@@ -111,6 +110,14 @@
             cursor: pointer;
             font-size: 1.2rem;
         }
+        .debug-info {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px dashed rgba(255,255,255,0.1);
+            font-size: 0.7rem;
+            color: #555;
+            word-break: break-all;
+        }
     </style>
 </head>
 <body>
@@ -143,8 +150,8 @@
     <!-- MapLibre GL JS v4.7.1 -->
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script>
-        // --- 1. 内蔵データベース (サーバー不要化) ---
-        // GitHub Pagesで確実に動作させるため、データを直接埋め込みます
+        // --- 1. 内蔵データベース ---
+        // ※ ISO3コード(大文字)をキーに使用
         const AFRICA_DB = {
             "DZA": { "name": "Algeria", "gdp": "191.9 Billion USD", "population": "44 Million", "system": "Unitary semi-presidential republic", "stability_index": "Moderate", "risk_analysis": "Reliance on hydrocarbons, youth unemployment." },
             "AGO": { "name": "Angola", "gdp": "106.7 Billion USD", "population": "35 Million", "system": "Unitary dominant-party presidential republic", "stability_index": "Fragile", "risk_analysis": "Oil dependency, high debt, corruption." },
@@ -235,10 +242,8 @@
         document.getElementById('toggleSidebar').addEventListener('click', () => sidebarEl.classList.add('collapsed'));
         document.getElementById('closeCountryPanel').addEventListener('click', () => countryPanel.classList.remove('active'));
 
-        // --- データ取得関数 (API廃止 -> 内部データ使用) ---
+        // --- データ取得関数 ---
         async function fetchRisks() {
-            // バックエンドが動いていない環境(GitHub Pages)では即座にシミュレーションデータを返す
-            // 本来はGDELT APIを直接叩くべきだが、CORS問題が起きるためデモ用データを使用
             return new Promise(resolve => {
                 setTimeout(() => resolve(FALLBACK_RISK), 800);
             });
@@ -246,10 +251,10 @@
 
         // --- メイン処理 ---
         map.on('load', async () => {
-            // 1. 国境レイヤーの追加 (Natural Earthのデータ)
+            // 1. 国境レイヤーの追加 (GitHub上の軽量なNatural Earth 110mデータ)
             map.addSource('countries', {
                 type: 'geojson',
-                data: 'https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson'
+                data: 'https://raw.githubusercontent.com/neondo/ne_110m_admin_0_countries/master/ne_110m_admin_0_countries.geojson'
             });
 
             // 国境線の描画
@@ -311,19 +316,19 @@
                 map.getCanvas().style.cursor = '';
             });
 
-            // クリック時 (詳細パネル表示) - ロジック修正
+            // クリック時 (詳細パネル表示) - 改良版
             map.on('click', 'countries-fill', (e) => {
                 if (e.features.length === 0) return;
                 
                 const feature = e.features[0];
                 const props = feature.properties;
                 
-                // データマッチングの強化: 複数のプロパティをチェックして国コードを探す
-                // CloudFrontのデータセットでは 'adm0_a3' または 'iso_a3' が一般的
-                const isoCode = props.adm0_a3 || props.iso_a3 || props.su_a3 || "N/A";
-                const name = props.name || props.admin || "Unknown Region";
+                console.log("Clicked Feature Properties:", props); // デバッグ用
 
-                console.log(`Clicked: ${name} (${isoCode})`); // デバッグ用ログ
+                // プロパティ名総当たりロジック (大文字小文字、様々なバリエーションに対応)
+                // 優先順位: ADM0_A3 (Natural Earth標準) > ISO_A3 > SU_A3 ...
+                const isoCode = props.ADM0_A3 || props.adm0_a3 || props.ISO_A3 || props.iso_a3 || props.ISO_A3_EH || props.GU_A3 || props.su_a3 || "N/A";
+                const name = props.NAME || props.name || props.ADMIN || props.admin || "Unknown Region";
 
                 // 内部データベースから情報を検索
                 const data = AFRICA_DB[isoCode];
@@ -341,13 +346,21 @@
                         </div>
                     `;
                 } else {
-                    // データがない場合
+                    // データがない場合 (エラー診断情報を表示)
                     cpName.textContent = name;
+                    
+                    // 利用可能なプロパティのキーを取得して表示
+                    const availableKeys = Object.keys(props).join(", ");
+                    
                     cpContent.innerHTML = `
-                        <div class="stat-row"><span class="stat-label">ISO Code</span><span class="stat-value">${isoCode}</span></div>
+                        <div class="stat-row"><span class="stat-label">Code</span><span class="stat-value">${isoCode}</span></div>
                         <div style="margin-top:10px; color:var(--text-sub); font-size:0.8rem;">
-                            No detailed economic data available in the current database.<br>
-                            (Try clicking major African nations)
+                            No data found for code: "${isoCode}".<br>
+                            Try clicking major nations like Nigeria (NGA) or Egypt (EGY).
+                        </div>
+                        <div class="debug-info">
+                            <strong>Debug Info (Raw Keys):</strong><br>
+                            ${availableKeys.substring(0, 100)}...
                         </div>
                     `;
                 }
