@@ -63,7 +63,7 @@
         .maplibregl-popup-content { background: var(--bg-color); color: var(--text-main); border: 1px solid var(--accent-cyan); border-radius: 4px; padding: 15px; max-width: 250px; }
         .popup-link { display: inline-block; margin-top: 8px; color: var(--accent-cyan); text-decoration: none; border: 1px solid var(--accent-cyan); padding: 2px 6px; border-radius: 3px; font-size: 0.8rem; }
 
-        /* --- 新機能: 国家ステータスパネル --- */
+        /* --- 国家ステータスパネル --- */
         .country-panel {
             position: absolute;
             bottom: 20px;
@@ -72,10 +72,10 @@
             background: var(--panel-bg);
             backdrop-filter: blur(10px);
             border-radius: 8px;
-            border: 1px solid var(--accent-cyan); /* 国パネルは青枠で強調 */
+            border: 1px solid var(--accent-cyan);
             padding: 1.5rem;
             z-index: 20;
-            display: none; /* デフォルト非表示 */
+            display: none;
             box-shadow: 0 4px 25px rgba(0, 210, 255, 0.2);
             transform: translateY(20px);
             opacity: 0;
@@ -202,13 +202,11 @@
 
         // --- メイン処理 ---
         map.on('load', async () => {
-            // 1. 国境レイヤーの追加 (Natural Earthの軽量版GeoJSONを使用)
-            // アフリカのみフィルタリングするため、全データ取得後にフィルタリングするか、
-            // 簡易的に全世界を表示してアフリカのISOコードのみ反応させる方式をとります。
-            
+            // 1. 国境レイヤーの追加
+            // Natural Earthの安定したデータソース (ISO3コード "adm0_a3" を含む)
             map.addSource('countries', {
                 type: 'geojson',
-                data: 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json'
+                data: 'https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson'
             });
 
             // 国境線の描画
@@ -254,12 +252,13 @@
             // マウス移動時 (ホバーエフェクト)
             map.on('mousemove', 'countries-fill', (e) => {
                 if (e.features.length > 0) {
-                    if (hoveredStateId) {
+                    if (hoveredStateId !== null) {
                         map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: false });
                     }
-                    // GeoJSONによってはidがない場合があるので対策
+                    // GeoJSONのIDとして feature.id を使用 (Natural Earthでは数値IDが多いため注意)
+                    // feature-stateにはIDが必要
                     const feature = e.features[0];
-                    if (feature.id) {
+                    if (feature.id !== undefined) {
                         hoveredStateId = feature.id;
                         map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: true });
                     }
@@ -268,7 +267,7 @@
             });
 
             map.on('mouseleave', 'countries-fill', () => {
-                if (hoveredStateId) {
+                if (hoveredStateId !== null) {
                     map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: false });
                 }
                 hoveredStateId = null;
@@ -280,8 +279,11 @@
                 if (e.features.length === 0) return;
                 
                 const feature = e.features[0];
-                const isoCode = feature.id; // GeoJSONのID (例: NGA, EGY)
-                const name = feature.properties.name;
+                
+                // データマッチング用のコード取得
+                // Natural Earthでは "adm0_a3" に "JPN", "EGY" などが入っている
+                const isoCode = feature.properties.adm0_a3; 
+                const name = feature.properties.name || feature.properties.admin;
 
                 // データベースから情報を検索
                 const data = countryData[isoCode];
@@ -299,7 +301,7 @@
                         </div>
                     `;
                 } else {
-                    // データがない場合 (汎用表示)
+                    // データがない場合 (アフリカ以外またはデータ欠落)
                     cpName.textContent = name;
                     cpContent.innerHTML = `
                         <div class="stat-row"><span class="stat-label">ISO Code</span><span class="stat-value">${isoCode || 'N/A'}</span></div>
