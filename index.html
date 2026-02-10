@@ -81,20 +81,20 @@
     </aside>
 
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    <script>
-        // バックエンドAPIのURL (ローカル開発用)
-        const BACKEND_URL = "http://localhost:8000/api/risks";
-        
-        // フォールバックデータ
-        const FALLBACK_DATA = {
-            "type": "FeatureCollection",
-            "features": [
-                { "type": "Feature", "geometry": { "type": "Point", "coordinates": [31.2357, 30.0444] }, "properties": { "name": "Simulation: Cairo Alert", "risk_level": "High", "url": "#", "source": "Fallback" } },
-                { "type": "Feature", "geometry": { "type": "Point", "coordinates": [3.3792, 6.5244] }, "properties": { "name": "Simulation: Lagos Incident", "risk_level": "Medium", "url": "#", "source": "Fallback" } }
-            ]
-        };
-
-        const map = new maplibregl.Map({ container: 'map', style: 'https://demotiles.maplibre.org/style.json', center: [20, 0], zoom: 2.8, attributionControl: false });
+        const map = new maplibregl.Map({ 
+            container: 'map', 
+            style: 'https://demotiles.maplibre.org/style.json', 
+            center: [20, 0], 
+            zoom: 3.5, 
+            attributionControl: false,
+            // 地図の移動範囲を制限 (南西座標, 北東座標)
+            maxBounds: [
+                [-40, -45], // 西: 大西洋, 南: 南アフリカ沖
+                [70, 45]    // 東: インド洋, 北: 地中海
+            ],
+            // ズームアウトの制限 (大陸全体が見える程度で止める)
+            minZoom: 3
+        });
         map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
         const newsListEl = document.getElementById('newsList');
