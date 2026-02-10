@@ -3,537 +3,160 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Africa Geopolitical Risk Tracker</title>
-    
+    <title>Africa Geopolitical Risk Tracker (Backend Connected)</title>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-    
     <style>
         :root {
-            /* 配色設定 */
             --bg-color: #0a0f1c;
             --panel-bg: rgba(10, 15, 28, 0.85);
             --panel-border: rgba(255, 255, 255, 0.1);
-            --accent-red: #ff4d4d;
+            --risk-critical: #ff0055; /* クリティカル */
+            --risk-high: #ff4d4d;     /* 高リスク */
+            --risk-medium: #ffaa00;   /* 中リスク */
             --accent-cyan: #00d2ff;
             --text-main: #e2e8f0;
             --text-sub: #94a3b8;
-            --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
-        * {
-            box-sizing: border-box;
-        }
-
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            font-family: var(--font-stack);
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            overflow: hidden;
-        }
-
-        /* --- 地図コンテナ --- */
-        #map {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1;
-        }
-
-        /* 地図のダークモード化ハック: 
-           標準タイルを反転させてダークテーマ風に見せるGISエンジニアのテクニック */
-        .maplibregl-canvas-container {
-            filter: invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.2) grayscale(0.2);
-            background-color: #0a0f1c;
-        }
-        /* ポップアップやマーカーは反転させない */
-        .maplibregl-popup, .maplibregl-marker {
-            filter: invert(1) hue-rotate(180deg) brightness(1.4) contrast(0.8) grayscale(0);
-        }
-
-        /* --- UIコンポーネント: ヘッダーパネル --- */
-        .header-panel {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 10;
-            background: var(--panel-bg);
-            backdrop-filter: blur(10px);
-            padding: 1rem 1.5rem;
-            border-radius: 8px;
-            border: 1px solid var(--panel-border);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-            max-width: 350px;
-        }
-
-        .header-panel h1 {
-            margin: 0;
-            font-size: 1.2rem;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            color: var(--accent-cyan);
-            text-transform: uppercase;
-        }
-
-        .header-panel p {
-            margin: 5px 0 0 0;
-            font-size: 0.8rem;
-            color: var(--text-sub);
-        }
-
-        .status-indicator {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: var(--accent-cyan);
-            margin-right: 8px;
-            box-shadow: 0 0 8px var(--accent-cyan);
-        }
-
-        /* --- UIコンポーネント: サイドバー --- */
-        .sidebar {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            bottom: 20px;
-            width: 320px;
-            z-index: 10;
-            background: var(--panel-bg);
-            backdrop-filter: blur(10px);
-            border-radius: 8px;
-            border: 1px solid var(--panel-border);
-            display: flex;
-            flex-direction: column;
-            transition: transform 0.3s ease;
-            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4);
-        }
-
-        .sidebar.collapsed {
-            transform: translateX(340px);
-        }
-
-        .sidebar-header {
-            padding: 1rem;
-            border-bottom: 1px solid var(--panel-border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .sidebar-header h2 {
-            margin: 0;
-            font-size: 1rem;
-            color: var(--text-main);
-        }
-
-        .toggle-btn {
-            background: none;
-            border: 1px solid var(--panel-border);
-            color: var(--text-main);
-            border-radius: 4px;
-            cursor: pointer;
-            padding: 4px 8px;
-            font-size: 0.8rem;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: var(--font-stack); background-color: var(--bg-color); color: var(--text-main); overflow: hidden; }
+        #map { width: 100%; height: 100%; position: absolute; }
         
-        .toggle-trigger {
-            position: absolute;
-            left: -40px;
-            top: 10px;
-            background: var(--accent-red);
-            color: white;
-            border: none;
-            width: 30px;
-            height: 30px;
-            border-radius: 4px;
-            cursor: pointer;
-            display: none; /* JSで制御 */
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-        }
+        .maplibregl-canvas-container { filter: invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.2) grayscale(0.2); background-color: #0a0f1c; }
+        .maplibregl-popup, .maplibregl-marker { filter: invert(1) hue-rotate(180deg) brightness(1.4) contrast(0.8) grayscale(0); }
+
+        .header-panel { position: absolute; top: 20px; left: 20px; z-index: 10; background: var(--panel-bg); backdrop-filter: blur(10px); padding: 1rem 1.5rem; border-radius: 8px; border: 1px solid var(--panel-border); box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        .header-panel h1 { margin: 0; font-size: 1.2rem; color: var(--accent-cyan); text-transform: uppercase; }
+        .header-panel p { margin: 5px 0 0; font-size: 0.8rem; color: var(--text-sub); }
         
-        .sidebar.collapsed .toggle-trigger {
-            display: flex;
-        }
+        /* サーバー接続ステータス表示 */
+        .status-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-left: 10px; vertical-align: middle; }
+        .status-online { background: rgba(0, 255, 128, 0.2); color: #00ff80; border: 1px solid #00ff80; }
+        .status-offline { background: rgba(255, 0, 85, 0.2); color: #ff0055; border: 1px solid #ff0055; }
 
-        .news-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 0;
-            margin: 0;
-            list-style: none;
-        }
-
-        /* スクロールバーのカスタマイズ */
-        .news-list::-webkit-scrollbar {
-            width: 6px;
-        }
-        .news-list::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.2);
-            border-radius: 3px;
-        }
-
-        .news-item {
-            padding: 1rem;
-            border-bottom: 1px solid var(--panel-border);
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .news-item:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .news-item h3 {
-            margin: 0 0 5px 0;
-            font-size: 0.9rem;
-            line-height: 1.4;
-            color: var(--accent-cyan);
-        }
-
-        .news-item .meta {
-            font-size: 0.75rem;
-            color: var(--text-sub);
-            display: flex;
-            justify-content: space-between;
-        }
-
-        /* --- 可視化: 脈動するマーカー --- */
-        .pulsing-dot {
-            width: 20px;
-            height: 20px;
-            position: relative;
-            cursor: pointer;
-        }
-
-        .pulsing-dot::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 10px;
-            height: 10px;
-            background-color: var(--accent-red);
-            border-radius: 50%;
-            z-index: 2;
-            box-shadow: 0 0 10px rgba(255, 77, 77, 0.8);
-        }
-
-        .pulsing-dot::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 30px;
-            height: 30px;
-            background-color: rgba(255, 77, 77, 0.4);
-            border-radius: 50%;
-            z-index: 1;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% {
-                transform: translate(-50%, -50%) scale(0.5);
-                opacity: 1;
-            }
-            100% {
-                transform: translate(-50%, -50%) scale(2.5);
-                opacity: 0;
-            }
-        }
-
-        /* MapLibre Popup Customization */
-        .maplibregl-popup-content {
-            background: var(--bg-color);
-            color: var(--text-main);
-            border: 1px solid var(--accent-cyan);
-            border-radius: 4px;
-            padding: 15px;
-            max-width: 250px;
-            font-family: var(--font-stack);
-        }
+        .sidebar { position: absolute; top: 20px; right: 20px; bottom: 20px; width: 320px; z-index: 10; background: var(--panel-bg); backdrop-filter: blur(10px); border-radius: 8px; border: 1px solid var(--panel-border); display: flex; flex-direction: column; transition: transform 0.3s ease; }
+        .sidebar.collapsed { transform: translateX(340px); }
+        .sidebar-header { padding: 1rem; border-bottom: 1px solid var(--panel-border); display: flex; justify-content: space-between; align-items: center; }
+        .sidebar-header h2 { margin: 0; font-size: 1rem; }
+        .toggle-btn { background: none; border: 1px solid var(--panel-border); color: var(--text-main); border-radius: 4px; cursor: pointer; padding: 4px 8px; }
         
-        .maplibregl-popup-close-button {
-            color: var(--text-main);
-        }
-        
-        .maplibregl-popup-tip {
-            border-top-color: var(--accent-cyan);
-        }
-        
-        .popup-title {
-            font-weight: bold;
-            color: var(--accent-cyan);
-            margin-bottom: 8px;
-            display: block;
-        }
-        
-        .popup-link {
-            display: inline-block;
-            margin-top: 8px;
-            color: var(--accent-red);
-            text-decoration: none;
-            font-size: 0.8rem;
-            border: 1px solid var(--accent-red);
-            padding: 2px 6px;
-            border-radius: 3px;
-        }
-        
-        .popup-link:hover {
-            background: var(--accent-red);
-            color: #fff;
-        }
+        .news-list { flex: 1; overflow-y: auto; padding: 0; margin: 0; list-style: none; }
+        .news-item { padding: 1rem; border-bottom: 1px solid var(--panel-border); cursor: pointer; transition: background 0.2s; }
+        .news-item:hover { background: rgba(255,255,255,0.05); }
+        .news-item h3 { margin: 0 0 5px; font-size: 0.9rem; color: var(--accent-cyan); }
+        .risk-tag { font-size: 0.7rem; padding: 2px 4px; border-radius: 2px; margin-right: 5px; font-weight: bold; }
 
-        /* レスポンシブ対応 */
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 100%;
-                height: 40%;
-                top: auto;
-                bottom: 0;
-                right: 0;
-                left: 0;
-                border-radius: 12px 12px 0 0;
-                transform: translateY(0);
-            }
-            
-            .sidebar.collapsed {
-                transform: translateY(calc(100% - 50px));
-            }
-            
-            .header-panel {
-                width: calc(100% - 40px);
-                top: 10px;
-            }
-            
-            .sidebar.collapsed .toggle-trigger {
-                top: -40px;
-                left: 50%;
-                transform: translateX(-50%) rotate(90deg);
-            }
-        }
+        /* 動的なリスクカラー */
+        .risk-Critical { color: var(--risk-critical); border: 1px solid var(--risk-critical); }
+        .risk-High { color: var(--risk-high); border: 1px solid var(--risk-high); }
+        .risk-Medium { color: var(--risk-medium); border: 1px solid var(--risk-medium); }
+
+        .pulsing-dot { width: 20px; height: 20px; position: relative; cursor: pointer; }
+        .pulsing-dot::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 10px; height: 10px; border-radius: 50%; z-index: 2; }
+        .pulsing-dot::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 30px; height: 30px; border-radius: 50%; z-index: 1; animation: pulse 2s infinite; opacity: 0.5; }
+
+        @keyframes pulse { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; } }
+
+        /* Risk Colors for Markers */
+        .dot-Critical::before, .dot-Critical::after { background-color: var(--risk-critical); box-shadow: 0 0 10px var(--risk-critical); }
+        .dot-High::before, .dot-High::after { background-color: var(--risk-high); box-shadow: 0 0 8px var(--risk-high); }
+        .dot-Medium::before, .dot-Medium::after { background-color: var(--risk-medium); box-shadow: 0 0 5px var(--risk-medium); }
+
+        .maplibregl-popup-content { background: var(--bg-color); color: var(--text-main); border: 1px solid var(--accent-cyan); border-radius: 4px; padding: 15px; max-width: 250px; }
+        .popup-link { display: inline-block; margin-top: 8px; color: var(--accent-cyan); text-decoration: none; border: 1px solid var(--accent-cyan); padding: 2px 6px; border-radius: 3px; font-size: 0.8rem; }
     </style>
 </head>
 <body>
-
     <div id="map"></div>
-
     <div class="header-panel">
-        <h1>
-            <span class="status-indicator"></span>
-            Risk Tracker
-        </h1>
-        <p>Real-time Armed Conflict Monitoring (Africa)</p>
+        <h1>Risk Tracker <span id="statusBadge" class="status-badge status-offline">CONNECTING...</span></h1>
+        <p>Powered by FastAPI & MapLibre</p>
     </div>
-
     <aside class="sidebar" id="sidebar">
-        <button class="toggle-trigger" id="toggleShow" title="Show Feed">◀</button>
         <div class="sidebar-header">
-            <h2>Live Intelligence Feed</h2>
+            <h2>Live Intelligence</h2>
             <button class="toggle-btn" id="toggleSidebar">Close</button>
         </div>
-        <ul class="news-list" id="newsList">
-            <li class="news-item" style="text-align:center; color: #666;">Loading Data...</li>
-        </ul>
+        <ul class="news-list" id="newsList"><li class="news-item" style="text-align:center;">Initializing...</li></ul>
     </aside>
 
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    
     <script>
-        /**
-         * ============================================================
-         * 1. 設定 & 定数
-         * ============================================================
-         */
-        // GDELT GeoJSON API (アフリカの紛争データ)
-        const API_URL = "https://api.gdeltproject.org/api/v2/geo/geo?query=location:Africa%20theme:ARMEDCONFLICT&mode=PointData&format=geojson";
+        // バックエンドAPIのURL (ローカル開発用)
+        const BACKEND_URL = "http://localhost:8000/api/risks";
         
-        // フォールバック用ダミーデータ (API失敗時用)
+        // フォールバックデータ
         const FALLBACK_DATA = {
             "type": "FeatureCollection",
             "features": [
-                {
-                    "type": "Feature",
-                    "geometry": { "type": "Point", "coordinates": [31.2357, 30.0444] },
-                    "properties": { "name": "Security Alert: Cairo", "htmlurl": "#", "source": "Simulation Source" }
-                },
-                {
-                    "type": "Feature",
-                    "geometry": { "type": "Point", "coordinates": [3.3792, 6.5244] },
-                    "properties": { "name": "Unrest reported in Lagos outskirts", "htmlurl": "#", "source": "Simulation Source" }
-                },
-                {
-                    "type": "Feature",
-                    "geometry": { "type": "Point", "coordinates": [15.2663, -4.4419] },
-                    "properties": { "name": "Kinshasa: Protest movement update", "htmlurl": "#", "source": "Simulation Source" }
-                },
-                {
-                    "type": "Feature",
-                    "geometry": { "type": "Point", "coordinates": [36.8219, -1.2921] },
-                    "properties": { "name": "Nairobi: Increased security measures", "htmlurl": "#", "source": "Simulation Source" }
-                },
-                {
-                    "type": "Feature",
-                    "geometry": { "type": "Point", "coordinates": [28.0473, -26.2041] },
-                    "properties": { "name": "Johannesburg: Local conflict report", "htmlurl": "#", "source": "Simulation Source" }
-                }
+                { "type": "Feature", "geometry": { "type": "Point", "coordinates": [31.2357, 30.0444] }, "properties": { "name": "Simulation: Cairo Alert", "risk_level": "High", "url": "#", "source": "Fallback" } },
+                { "type": "Feature", "geometry": { "type": "Point", "coordinates": [3.3792, 6.5244] }, "properties": { "name": "Simulation: Lagos Incident", "risk_level": "Medium", "url": "#", "source": "Fallback" } }
             ]
         };
 
-        /**
-         * ============================================================
-         * 2. 地図描画部 (Map Initialization)
-         * ============================================================
-         */
-        const map = new maplibregl.Map({
-            container: 'map',
-            // APIキー不要のオープンなタイルを使用
-            style: 'https://demotiles.maplibre.org/style.json', 
-            center: [20, 0], // アフリカ中心
-            zoom: 2.8,
-            attributionControl: false
-        });
-
-        // ズーム・回転コントロール
+        const map = new maplibregl.Map({ container: 'map', style: 'https://demotiles.maplibre.org/style.json', center: [20, 0], zoom: 2.8, attributionControl: false });
         map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
-        map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
 
-        /**
-         * ============================================================
-         * 3. データ取得部 (Data Fetching)
-         * ============================================================
-         */
-        async function fetchRiskData() {
+        const newsListEl = document.getElementById('newsList');
+        const statusBadge = document.getElementById('statusBadge');
+        const sidebarEl = document.getElementById('sidebar');
+
+        document.getElementById('toggleSidebar').addEventListener('click', () => sidebarEl.classList.add('collapsed'));
+
+        function updateStatus(isOnline) {
+            statusBadge.textContent = isOnline ? "SYSTEM ONLINE" : "OFFLINE MODE";
+            statusBadge.className = isOnline ? "status-badge status-online" : "status-badge status-offline";
+        }
+
+        async function fetchData() {
             try {
-                // タイムアウト設定付きでフェッチ
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒でタイムアウト
-
-                const response = await fetch(API_URL, { signal: controller.signal });
-                clearTimeout(timeoutId);
-
-                if (!response.ok) throw new Error("API Response not ok");
-                
-                const data = await response.json();
-                
-                // GeoJSONとして有効か簡易チェック
-                if(!data.features || data.features.length === 0) throw new Error("No features found");
-
-                console.log("Data loaded from GDELT API");
+                const res = await fetch(BACKEND_URL);
+                if (!res.ok) throw new Error("Backend unavailable");
+                const data = await res.json();
+                updateStatus(true);
                 return data;
-
-            } catch (error) {
-                console.warn("API Fetch failed or timed out, loading fallback data:", error);
-                // エラー時はダミーデータを返す
+            } catch (e) {
+                console.warn("Backend fetch failed, using fallback:", e);
+                updateStatus(false);
                 return FALLBACK_DATA;
             }
         }
 
-        /**
-         * ============================================================
-         * 4. UI操作 & 可視化ロジック (UI & Visualization)
-         * ============================================================
-         */
-        
-        // サイドバー要素
-        const newsListEl = document.getElementById('newsList');
-        const sidebarEl = document.getElementById('sidebar');
-        const toggleBtn = document.getElementById('toggleSidebar');
-        const toggleShow = document.getElementById('toggleShow');
-
-        // サイドバー開閉ロジック
-        toggleBtn.addEventListener('click', () => {
-            sidebarEl.classList.add('collapsed');
-        });
-        toggleShow.addEventListener('click', () => {
-            sidebarEl.classList.remove('collapsed');
-        });
-
-        // ポイントとリストを描画するメイン関数
-        async function initDashboard() {
-            const geojson = await fetchRiskData();
-            
-            // リストをクリア
+        async function init() {
+            const geojson = await fetchData();
             newsListEl.innerHTML = '';
 
-            // データ件数が多すぎる場合は間引く（デモパフォーマンス用）
-            const features = geojson.features.slice(0, 50);
-
-            features.forEach((feature, index) => {
+            geojson.features.slice(0, 50).forEach(feature => {
                 const coords = feature.geometry.coordinates;
-                const props = feature.properties;
-                // GDELTのプロパティは変動するため、ある程度柔軟に取得
-                const title = props.name || props.title || "Unknown Event";
-                const url = props.htmlurl || props.url || "#";
-                const source = props.source || "GDELT Network";
+                const p = feature.properties;
+                // バックエンドで付与されたリスクレベルを使用 (デフォルトはMedium)
+                const risk = p.risk_level || "Medium";
+                const title = p.name || "Unknown Event";
 
-                // --- A. 地図上のマーカー作成 ---
-                
-                // カスタムHTMLマーカーの作成 (CSS Animation用)
+                // マーカー
                 const el = document.createElement('div');
-                el.className = 'pulsing-dot';
+                // クラスにリスクレベルを追加して色分け
+                el.className = `pulsing-dot dot-${risk}`;
                 
-                // クリック時のポップアップ
-                const popupHTML = `
-                    <span class="popup-title">${title}</span>
-                    <div style="font-size:0.8em; color:#ccc; margin-bottom:5px;">Source: ${source}</div>
-                    <a href="${url}" target="_blank" class="popup-link">Read Article</a>
-                `;
-
                 const marker = new maplibregl.Marker({ element: el })
                     .setLngLat(coords)
-                    .setPopup(new maplibregl.Popup({ offset: 25, closeButton: false }).setHTML(popupHTML))
+                    .setPopup(new maplibregl.Popup({ offset: 25, closeButton: false })
+                    .setHTML(`<strong>${title}</strong><br><span style="color:#aaa;font-size:0.8em">Risk: ${risk}</span><br><a href="${p.url || p.htmlurl}" target="_blank" class="popup-link">Detail</a>`))
                     .addTo(map);
 
-                // --- B. サイドバーリストへの追加 ---
-                
-                const listItem = document.createElement('li');
-                listItem.className = 'news-item';
-                listItem.innerHTML = `
-                    <h3>${title}</h3>
-                    <div class="meta">
-                        <span>${source}</span>
-                        <span style="color: var(--accent-cyan);">● Map</span>
-                    </div>
-                `;
-
-                // リストクリックで地図移動
-                listItem.addEventListener('click', () => {
-                    // マーカーへFly
-                    map.flyTo({
-                        center: coords,
-                        zoom: 6,
-                        speed: 1.5
-                    });
-                    
-                    // ポップアップを開く
+                // リストアイテム
+                const li = document.createElement('li');
+                li.className = 'news-item';
+                li.innerHTML = `<h3>${title}</h3><div style="display:flex; justify-content:space-between; align-items:center"><span class="risk-tag risk-${risk}">${risk.toUpperCase()}</span><span style="font-size:0.7em; color:#888">${p.source || 'GDELT'}</span></div>`;
+                li.addEventListener('click', () => {
+                    map.flyTo({ center: coords, zoom: 6 });
                     marker.togglePopup();
-                    
-                    // モバイル時はサイドバーを閉じる
-                    if(window.innerWidth < 768) {
-                        sidebarEl.classList.add('collapsed');
-                    }
                 });
-
-                newsListEl.appendChild(listItem);
+                newsListEl.appendChild(li);
             });
         }
 
-        // アプリケーション開始
-        map.on('load', () => {
-            initDashboard();
-        });
-
+        map.on('load', init);
     </script>
 </body>
 </html>
