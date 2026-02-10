@@ -25,7 +25,6 @@
         
         /* Map Styles - Adjusted for brightness */
         .maplibregl-canvas-container { 
-            /* 以前: brightness(0.7) -> 今回: brightness(0.95) に変更して明るくしました */
             filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(1.1) grayscale(0.1); 
             background-color: #0a0f1c; 
         }
@@ -38,21 +37,6 @@
         
         .status-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-left: 10px; vertical-align: middle; }
         .status-online { background: rgba(0, 255, 128, 0.2); color: #00ff80; border: 1px solid #00ff80; }
-
-        /* サイドバー */
-        .sidebar { position: absolute; top: 20px; right: 20px; bottom: 20px; width: 320px; z-index: 10; background: var(--panel-bg); backdrop-filter: blur(10px); border-radius: 8px; border: 1px solid var(--panel-border); display: flex; flex-direction: column; transition: transform 0.3s ease; }
-        .sidebar.collapsed { transform: translateX(340px); }
-        .sidebar-header { padding: 1rem; border-bottom: 1px solid var(--panel-border); display: flex; justify-content: space-between; align-items: center; }
-        .toggle-btn { background: none; border: 1px solid var(--panel-border); color: var(--text-main); border-radius: 4px; cursor: pointer; padding: 4px 8px; }
-        
-        .news-list { flex: 1; overflow-y: auto; padding: 0; margin: 0; list-style: none; }
-        .news-item { padding: 1rem; border-bottom: 1px solid var(--panel-border); cursor: pointer; transition: background 0.2s; }
-        .news-item:hover { background: rgba(255,255,255,0.05); }
-        .news-item h3 { margin: 0 0 5px; font-size: 0.9rem; color: var(--accent-cyan); }
-        .risk-tag { font-size: 0.7rem; padding: 2px 4px; border-radius: 2px; margin-right: 5px; font-weight: bold; }
-        .risk-Critical { color: var(--risk-critical); border: 1px solid var(--risk-critical); }
-        .risk-High { color: var(--risk-high); border: 1px solid var(--risk-high); }
-        .risk-Medium { color: var(--risk-medium); border: 1px solid var(--risk-medium); }
 
         /* マーカーアニメーション */
         .pulsing-dot { width: 20px; height: 20px; position: relative; cursor: pointer; }
@@ -134,15 +118,6 @@
         <p>Strategic Intelligence Dashboard</p>
     </div>
 
-    <!-- サイドバー -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <h2>Live Intelligence</h2>
-            <button class="toggle-btn" id="toggleSidebar">Close</button>
-        </div>
-        <ul class="news-list" id="newsList"><li class="news-item" style="text-align:center;">No active alerts</li></ul>
-    </aside>
-
     <!-- 国ステータスパネル -->
     <div class="country-panel" id="countryPanel">
         <button class="close-country-panel" id="closeCountryPanel">×</button>
@@ -176,14 +151,11 @@
         map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
         // 要素参照
-        const newsListEl = document.getElementById('newsList');
         const countryPanel = document.getElementById('countryPanel');
         const cpName = document.getElementById('cpName');
         const cpContent = document.getElementById('cpContent');
-        const sidebarEl = document.getElementById('sidebar');
 
         // UIイベント
-        document.getElementById('toggleSidebar').addEventListener('click', () => sidebarEl.classList.add('collapsed'));
         document.getElementById('closeCountryPanel').addEventListener('click', () => countryPanel.classList.remove('active'));
 
         // --- データ保持用変数 ---
@@ -355,11 +327,9 @@
 
         // リスクマーカー描画関数
         function plotRisks(geojson) {
-            newsListEl.innerHTML = '';
             const features = geojson.features ? geojson.features.slice(0, 50) : [];
             
             if (features.length === 0) {
-                newsListEl.innerHTML = '<li class="news-item" style="text-align:center;">No active alerts</li>';
                 return;
             }
 
@@ -376,15 +346,6 @@
                     .setPopup(new maplibregl.Popup({ offset: 25, closeButton: false })
                         .setHTML(`<strong>${p.name}</strong><br><span style="color:#aaa;font-size:0.8em">Risk: ${risk}</span>`))
                     .addTo(map);
-
-                // ニュースリスト
-                const li = document.createElement('li');
-                li.className = 'news-item';
-                li.innerHTML = `<h3>${p.name || 'Unknown'}</h3><div style="display:flex; justify-content:space-between"><span class="risk-tag risk-${risk}">${risk}</span></div>`;
-                li.addEventListener('click', () => {
-                    map.flyTo({ center: coords, zoom: 6 });
-                });
-                newsListEl.appendChild(li);
             });
         }
 
