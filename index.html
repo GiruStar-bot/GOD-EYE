@@ -136,7 +136,6 @@
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script>
         // --- 1. 完全内蔵データベース ---
-        // (修正なし: 既存のデータをそのまま使用)
         const AFRICA_DATA = {
             "DZA": { "name": "Algeria", "gdp": "191.9 Billion USD", "system": "Unitary semi-presidential republic", "stability_index": "Moderate", "risk_analysis": "Reliance on hydrocarbons, youth unemployment." },
             "AGO": { "name": "Angola", "gdp": "106.7 Billion USD", "system": "Unitary presidential republic", "stability_index": "Fragile", "risk_analysis": "Oil dependency, high debt, corruption." },
@@ -202,23 +201,30 @@
         document.getElementById('closeCountryPanel').addEventListener('click', () => countryPanel.classList.remove('active'));
 
         map.on('load', async () => {
-            // エラー回避: 重複チェックを厳密に行う
-            if (map.getSource('countries')) {
-                console.log('Source already loaded, skipping...');
-                return;
-            }
+            // エラー回避: 重複チェック
+            if (map.getSource('countries')) return;
 
-            // 1. 地図ソースの追加
-            // 404エラー対策: 信頼性の高いAWS CloudFrontのURLに変更
-            map.addSource('countries', {
-                type: 'geojson',
-                data: 'https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson',
-                promoteId: 'adm0_a3' // CloudFront版のプロパティに合わせて小文字に変更
-            });
+            // 1. 地図データをFetchし、IDを強制的に割り振る (最重要修正)
+            try {
+                // AWS CloudFrontの安定したGeoJSONを使用
+                const response = await fetch('https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson');
+                const geojson = await response.json();
 
-            // 2. 国境線レイヤー (発光エフェクト)
-            // レイヤー重複チェックを追加
-            if (!map.getLayer('countries-line')) {
+                // すべての国データにIDを付与する
+                geojson.features.forEach((feature, index) => {
+                    // プロパティの揺らぎを吸収してIDを決定 (大文字/小文字対応)
+                    const code = feature.properties.ADM0_A3 || feature.properties.adm0_a3 || feature.properties.ISO_A3 || feature.properties.iso_a3;
+                    // IDをセット（これがfeature.idになる）
+                    feature.id = code; 
+                });
+
+                // ID付きのデータをソースとして追加
+                map.addSource('countries', {
+                    type: 'geojson',
+                    data: geojson
+                });
+
+                // 2. 国境線レイヤー (発光エフェクト)
                 map.addLayer({
                     'id': 'countries-line',
                     'type': 'line',
@@ -231,10 +237,8 @@
                         'line-blur': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0]
                     }
                 });
-            }
 
-            // 3. 国の塗りつぶし (当たり判定用)
-            if (!map.getLayer('countries-fill')) {
+                // 3. 国の塗りつぶし (当たり判定用)
                 map.addLayer({
                     'id': 'countries-fill',
                     'type': 'fill',
@@ -244,72 +248,86 @@
                         'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.15, 0]
                     }
                 });
-            }
 
-            // 4. マウスイベント
-            let hoveredStateId = null;
+                // 4. マウスイベント
+                let hoveredStateId = null;
 
-            map.on('mousemove', 'countries-fill', (e) => {
-                if (e.features.length > 0) {
+                map.on('mousemove', 'countries-fill', (e) => {
+                    if (e.features.length > 0) {
+                        if (hoveredStateId !== null) {
+                            map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: false });
+                        }
+                        
+                        // IDが付与されているので確実に取得できる
+                        const feature = e.features[0];
+                        hoveredStateId = feature.id;
+                        
+                        if (hoveredStateId !== undefined) {
+                            map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: true });
+                        }
+                        
+                        map.getCanvas().style.cursor = 'pointer';
+                    }
+                });
+
+                map.on('mouseleave', 'countries-fill', () => {
                     if (hoveredStateId !== null) {
                         map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: false });
                     }
-                    const feature = e.features[0];
-                    // CloudFront版のID (adm0_a3) を取得
-                    hoveredStateId = feature.id; 
+                    hoveredStateId = null;
+                    map.getCanvas().style.cursor = '';
+                });
+
+                // 5. クリック処理
+                map.on('click', 'countries-fill', (e) => {
+                    if (e.features.length === 0) return;
                     
-                    if (hoveredStateId !== undefined) {
-                        map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: true });
+                    const feature = e.features[0];
+                    const props = feature.properties;
+                    
+                    // 強制的に付与したID（国コード）を使用
+                    const isoCode = feature.id; 
+                    const name = props.NAME || props.name || props.ADMIN || "Unknown";
+
+                    const data = AFRICA_DATA[isoCode];
+
+                    if (data) {
+                        cpName.textContent = data.name;
+                        cpContent.innerHTML = `
+                            <div class="stat-row"><span class="stat-label">GDP</span><span class="stat-value">${data.gdp}</span></div>
+                            <div class="stat-row"><span class="stat-label">System</span><span class="stat-value">${data.system}</span></div>
+                            <div class="stat-row"><span class="stat-label">Stability</span><span class="stat-value" style="color:${getStabilityColor(data.stability_index)}">${data.stability_index}</span></div>
+                            <div class="risk-section">
+                                <div class="stat-label" style="margin-bottom:8px;">Risk Analysis</div>
+                                <div class="risk-content">${data.risk_analysis}</div>
+                            </div>
+                        `;
+                    } else {
+                        cpName.textContent = name;
+                        cpContent.innerHTML = `
+                            <div class="stat-row"><span class="stat-label">Code</span><span class="stat-value">${isoCode || 'N/A'}</span></div>
+                            <div style="margin-top:15px; color:var(--text-sub); font-size:0.85rem; line-height:1.5;">
+                                No detailed data available for this region.
+                            </div>
+                        `;
                     }
-                    map.getCanvas().style.cursor = 'pointer';
-                }
-            });
+                    countryPanel.classList.add('active');
+                });
 
-            map.on('mouseleave', 'countries-fill', () => {
-                if (hoveredStateId !== null) {
-                    map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: false });
-                }
-                hoveredStateId = null;
-                map.getCanvas().style.cursor = '';
-            });
-
-            // 5. クリック処理 (ロジック修正)
-            map.on('click', 'countries-fill', (e) => {
-                if (e.features.length === 0) return;
-                
-                const feature = e.features[0];
-                const props = feature.properties;
-                
-                // データマッチング
-                // CloudFront版では 'adm0_a3' がIDとしてプロモートされている
-                const isoCode = feature.id; 
-                const name = props.name || props.admin || "Unknown Region";
-
-                const data = AFRICA_DATA[isoCode];
-
-                if (data) {
-                    cpName.textContent = data.name;
-                    cpContent.innerHTML = `
-                        <div class="stat-row"><span class="stat-label">GDP</span><span class="stat-value">${data.gdp}</span></div>
-                        <div class="stat-row"><span class="stat-label">System</span><span class="stat-value">${data.system}</span></div>
-                        <div class="stat-row"><span class="stat-label">Stability</span><span class="stat-value" style="color:${getStabilityColor(data.stability_index)}">${data.stability_index}</span></div>
-                        <div class="risk-section">
-                            <div class="stat-label" style="margin-bottom:8px;">Risk Analysis</div>
-                            <div class="risk-content">${data.risk_analysis}</div>
-                        </div>
-                    `;
-                } else {
-                    cpName.textContent = name;
-                    cpContent.innerHTML = `
-                        <div class="stat-row"><span class="stat-label">Code</span><span class="stat-value">${isoCode || 'N/A'}</span></div>
-                        <div style="margin-top:15px; color:var(--text-sub); font-size:0.85rem; line-height:1.5;">
-                            No detailed data available for this region.
-                        </div>
-                    `;
-                }
-                countryPanel.classList.add('active');
-            });
+            } catch (err) {
+                console.error("Failed to load map geojson:", err);
+            }
         });
+
+        // 6. リスクマーカー（今回は空にして非表示）
+        const FALLBACK_RISK = { "type": "FeatureCollection", "features": [] };
+        async function fetchRisks() { return new Promise(r => setTimeout(() => r(FALLBACK_RISK), 800)); }
+        
+        async function initRisks() {
+            const riskGeoJSON = await fetchRisks();
+            // プロット処理（現在は空）
+        }
+        initRisks();
 
         function getStabilityColor(status) {
             if (status === 'Stable') return '#00ff80';
