@@ -130,6 +130,12 @@
     <script>
         const FALLBACK_RISK = { "type": "FeatureCollection", "features": [] };
 
+        // 予備データ（JSON読み込み失敗時用）
+        const BACKUP_DATA = {
+            "NGA": { "name": "Nigeria", "gdp": "477.4 Billion USD", "system": "Federal presidential republic", "stability_index": "Fragile", "risk_analysis": "Boko Haram, banditry, inflation, oil theft." },
+            "EGY": { "name": "Egypt", "gdp": "476.7 Billion USD", "system": "Unitary semi-presidential republic", "stability_index": "Moderate", "risk_analysis": "Inflation, currency devaluation, Nile dam dispute." }
+        };
+
         const map = new maplibregl.Map({ 
             container: 'map', 
             style: 'https://demotiles.maplibre.org/style.json', 
@@ -156,161 +162,145 @@
 
         async function loadCountryData() {
             try {
+                // 相対パスでJSONを読み込む
                 const response = await fetch('./africa_data.json');
                 if (!response.ok) throw new Error('Failed to load country data');
                 africaData = await response.json();
                 console.log("Country data loaded successfully");
             } catch (error) {
-                console.error("Error loading data:", error);
+                console.warn("Using backup data due to:", error);
+                africaData = BACKUP_DATA; // 失敗時はバックアップを使用
             }
         }
 
         map.on('load', async () => {
             await loadCountryData();
 
-            // 1. 地図データをFetchで取得し、IDを強制的に割り振る (最重要修正)
-            try {
-                const response = await fetch('https://raw.githubusercontent.com/neondo/ne_110m_admin_0_countries/master/ne_110m_admin_0_countries.geojson');
-                const geojson = await response.json();
+            // 1. 地図ソースの追加
+            // promoteId: 'ADM0_A3' を使うことで、MapLibreが自動的にIDを認識してくれます
+            // これが最も安定して動作する方法です
+            map.addSource('countries', {
+                type: 'geojson',
+                data: 'https://raw.githubusercontent.com/neondo/ne_110m_admin_0_countries/master/ne_110m_admin_0_countries.geojson',
+                promoteId: 'ADM0_A3' 
+            });
 
-                // すべての国データにIDを付与する
-                geojson.features.forEach((feature, index) => {
-                    // ADM0_A3 があればそれを、なければインデックス番号をIDにする
-                    feature.id = feature.properties.ADM0_A3 || feature.properties.adm0_a3 || index;
-                });
+            // 2. 国境線レイヤー (発光エフェクト)
+            map.addLayer({
+                'id': 'countries-line',
+                'type': 'line',
+                'source': 'countries',
+                'layout': {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                'paint': {
+                    'line-color': [
+                        'case',
+                        ['boolean', ['feature-state', 'hover'], false],
+                        '#4dfaff', // ホバー時: ネオンシアン
+                        '#005566'  // 通常時: 暗いシアン
+                    ],
+                    'line-width': [
+                        'case',
+                        ['boolean', ['feature-state', 'hover'], false],
+                        3, 
+                        0.5
+                    ],
+                    'line-opacity': [
+                        'case',
+                        ['boolean', ['feature-state', 'hover'], false],
+                        1.0, 
+                        0.4 
+                    ],
+                    'line-blur': [
+                        'case',
+                        ['boolean', ['feature-state', 'hover'], false],
+                        2, // ぼかしで発光感を出す
+                        0
+                    ]
+                }
+            });
 
-                // ID付きのデータをソースとして追加
-                map.addSource('countries', {
-                    type: 'geojson',
-                    data: geojson
-                });
+            // 3. 国の塗りつぶし (当たり判定用)
+            map.addLayer({
+                'id': 'countries-fill',
+                'type': 'fill',
+                'source': 'countries',
+                'layout': {},
+                'paint': {
+                    'fill-color': '#00d2ff',
+                    'fill-opacity': [
+                        'case',
+                        ['boolean', ['feature-state', 'hover'], false],
+                        0.15, // ホバー時
+                        0     // 通常時 (透明)
+                    ]
+                }
+            });
 
-                // 2. 国境線レイヤー (発光エフェクト)
-                map.addLayer({
-                    'id': 'countries-line',
-                    'type': 'line',
-                    'source': 'countries',
-                    'layout': {
-                        'line-join': 'round',
-                        'line-cap': 'round'
-                    },
-                    'paint': {
-                        // ホバー時の色: 明るいシアン (#4dfaff)、通常時: 暗めのシアン (#005566)
-                        'line-color': [
-                            'case',
-                            ['boolean', ['feature-state', 'hover'], false],
-                            '#4dfaff', 
-                            '#005566' 
-                        ],
-                        // ホバー時: 太く(3px)、通常時: 細く(0.5px)
-                        'line-width': [
-                            'case',
-                            ['boolean', ['feature-state', 'hover'], false],
-                            3, 
-                            0.5
-                        ],
-                        // ホバー時: 不透明、通常時: 半透明
-                        'line-opacity': [
-                            'case',
-                            ['boolean', ['feature-state', 'hover'], false],
-                            1.0, 
-                            0.4 
-                        ],
-                        // ホバー時: ぼかしを入れてネオンっぽく
-                        'line-blur': [
-                            'case',
-                            ['boolean', ['feature-state', 'hover'], false],
-                            2,
-                            0
-                        ]
-                    }
-                });
+            // 4. マウスイベント
+            let hoveredStateId = null;
 
-                // 3. 国の塗りつぶし (透明な当たり判定用)
-                map.addLayer({
-                    'id': 'countries-fill',
-                    'type': 'fill',
-                    'source': 'countries',
-                    'layout': {},
-                    'paint': {
-                        'fill-color': '#00d2ff',
-                        'fill-opacity': [
-                            'case',
-                            ['boolean', ['feature-state', 'hover'], false],
-                            0.15, // ホバー時にほんのり光らせる
-                            0     // 通常時は完全透明
-                        ]
-                    }
-                });
-
-                // 4. マウスイベントの設定
-                let hoveredStateId = null;
-
-                map.on('mousemove', 'countries-fill', (e) => {
-                    if (e.features.length > 0) {
-                        if (hoveredStateId !== null) {
-                            map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: false });
-                        }
-                        
-                        // IDが付与されているので確実に取得できる
-                        const feature = e.features[0];
-                        hoveredStateId = feature.id;
-                        
-                        if (hoveredStateId !== undefined) {
-                            map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: true });
-                        }
-                        
-                        map.getCanvas().style.cursor = 'pointer';
-                    }
-                });
-
-                map.on('mouseleave', 'countries-fill', () => {
+            map.on('mousemove', 'countries-fill', (e) => {
+                if (e.features.length > 0) {
                     if (hoveredStateId !== null) {
                         map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: false });
                     }
-                    hoveredStateId = null;
-                    map.getCanvas().style.cursor = '';
-                });
-
-                // クリック処理
-                map.on('click', 'countries-fill', (e) => {
-                    if (e.features.length === 0) return;
-                    
                     const feature = e.features[0];
-                    const props = feature.properties;
+                    // promoteIdを設定したため、feature.idには自動的に国コード(例: "NGA")が入ります
+                    hoveredStateId = feature.id;
                     
-                    // IDとして使ったコードをそのままキーにする
-                    const isoCode = feature.id;
-                    const name = props.NAME || props.name || props.ADMIN || "Unknown";
-
-                    const data = africaData[isoCode];
-
-                    if (data) {
-                        cpName.textContent = data.name;
-                        cpContent.innerHTML = `
-                            <div class="stat-row"><span class="stat-label">GDP</span><span class="stat-value">${data.gdp}</span></div>
-                            <div class="stat-row"><span class="stat-label">System</span><span class="stat-value">${data.system}</span></div>
-                            <div class="stat-row"><span class="stat-label">Stability</span><span class="stat-value" style="color:${getStabilityColor(data.stability_index)}">${data.stability_index}</span></div>
-                            <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.1)">
-                                <div class="stat-label" style="margin-bottom:4px;">Risk Analysis:</div>
-                                <div style="font-size:0.85rem; line-height:1.4;">${data.risk_analysis}</div>
-                            </div>
-                        `;
-                    } else {
-                        cpName.textContent = name;
-                        cpContent.innerHTML = `
-                            <div class="stat-row"><span class="stat-label">Code</span><span class="stat-value">${isoCode}</span></div>
-                            <div style="margin-top:10px; color:var(--text-sub); font-size:0.8rem;">
-                                No detailed data available.
-                            </div>
-                        `;
+                    if (hoveredStateId !== undefined) {
+                        map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: true });
                     }
-                    countryPanel.classList.add('active');
-                });
+                    map.getCanvas().style.cursor = 'pointer';
+                }
+            });
 
-            } catch (err) {
-                console.error("Failed to load map geojson:", err);
-            }
+            map.on('mouseleave', 'countries-fill', () => {
+                if (hoveredStateId !== null) {
+                    map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: false });
+                }
+                hoveredStateId = null;
+                map.getCanvas().style.cursor = '';
+            });
+
+            // クリック処理
+            map.on('click', 'countries-fill', (e) => {
+                if (e.features.length === 0) return;
+                
+                const feature = e.features[0];
+                const props = feature.properties;
+                
+                // feature.id は promoteId='ADM0_A3' により国コードになっています
+                const isoCode = feature.id; 
+                const name = props.NAME || props.name || props.ADMIN || "Unknown";
+
+                const data = africaData[isoCode];
+
+                if (data) {
+                    cpName.textContent = data.name;
+                    cpContent.innerHTML = `
+                        <div class="stat-row"><span class="stat-label">GDP</span><span class="stat-value">${data.gdp}</span></div>
+                        <div class="stat-row"><span class="stat-label">System</span><span class="stat-value">${data.system}</span></div>
+                        <div class="stat-row"><span class="stat-label">Stability</span><span class="stat-value" style="color:${getStabilityColor(data.stability_index)}">${data.stability_index}</span></div>
+                        <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.1)">
+                            <div class="stat-label" style="margin-bottom:4px;">Risk Analysis:</div>
+                            <div style="font-size:0.85rem; line-height:1.4;">${data.risk_analysis}</div>
+                        </div>
+                    `;
+                } else {
+                    cpName.textContent = name;
+                    cpContent.innerHTML = `
+                        <div class="stat-row"><span class="stat-label">Code</span><span class="stat-value">${isoCode || 'N/A'}</span></div>
+                        <div style="margin-top:10px; color:var(--text-sub); font-size:0.8rem;">
+                            No detailed data available for this region.
+                        </div>
+                    `;
+                }
+                countryPanel.classList.add('active');
+            });
 
             const riskGeoJSON = await fetchRisks();
             plotRisks(riskGeoJSON);
