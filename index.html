@@ -81,6 +81,19 @@
     </aside>
 
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <script>
+        // 設定値
+        const BACKEND_URL = "http://localhost:8000/api/risks";
+        
+        const FALLBACK_DATA = {
+            "type": "FeatureCollection",
+            "features": [
+                { "type": "Feature", "geometry": { "type": "Point", "coordinates": [31.2357, 30.0444] }, "properties": { "name": "Simulation: Cairo Alert", "risk_level": "High", "url": "#", "source": "Fallback" } },
+                { "type": "Feature", "geometry": { "type": "Point", "coordinates": [3.3792, 6.5244] }, "properties": { "name": "Simulation: Lagos Incident", "risk_level": "Medium", "url": "#", "source": "Fallback" } }
+            ]
+        };
+
+        // 地図の初期化
         const map = new maplibregl.Map({ 
             container: 'map', 
             style: 'https://demotiles.maplibre.org/style.json', 
@@ -97,10 +110,12 @@
         });
         map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
+        // UI要素
         const newsListEl = document.getElementById('newsList');
         const statusBadge = document.getElementById('statusBadge');
         const sidebarEl = document.getElementById('sidebar');
 
+        // イベントリスナー
         document.getElementById('toggleSidebar').addEventListener('click', () => sidebarEl.classList.add('collapsed'));
 
         function updateStatus(isOnline) {
@@ -110,7 +125,13 @@
 
         async function fetchData() {
             try {
-                const res = await fetch(BACKEND_URL);
+                // 3秒でタイムアウトするように設定
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                
+                const res = await fetch(BACKEND_URL, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
                 if (!res.ok) throw new Error("Backend unavailable");
                 const data = await res.json();
                 updateStatus(true);
@@ -126,7 +147,15 @@
             const geojson = await fetchData();
             newsListEl.innerHTML = '';
 
-            geojson.features.slice(0, 50).forEach(feature => {
+            // データ処理
+            const features = geojson.features ? geojson.features.slice(0, 50) : [];
+
+            if (features.length === 0) {
+                newsListEl.innerHTML = '<li class="news-item" style="text-align:center;">No data available</li>';
+                return;
+            }
+
+            features.forEach(feature => {
                 const coords = feature.geometry.coordinates;
                 const p = feature.properties;
                 // バックエンドで付与されたリスクレベルを使用 (デフォルトはMedium)
@@ -135,7 +164,6 @@
 
                 // マーカー
                 const el = document.createElement('div');
-                // クラスにリスクレベルを追加して色分け
                 el.className = `pulsing-dot dot-${risk}`;
                 
                 const marker = new maplibregl.Marker({ element: el })
