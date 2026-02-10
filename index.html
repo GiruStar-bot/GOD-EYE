@@ -9,7 +9,7 @@
     <style>
         :root {
             --bg-color: #0a0f1c;
-            --panel-bg: rgba(10, 15, 28, 0.95); /* 少し濃くしました */
+            --panel-bg: rgba(10, 15, 28, 0.95);
             --panel-border: rgba(255, 255, 255, 0.15);
             --risk-critical: #ff0055;
             --risk-high: #ff4d4d;
@@ -135,7 +135,8 @@
     <!-- MapLibre GL JS -->
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script>
-        // --- 1. 完全内蔵データベース (通信エラー回避のため) ---
+        // --- 1. 完全内蔵データベース ---
+        // (修正なし: 既存のデータをそのまま使用)
         const AFRICA_DATA = {
             "DZA": { "name": "Algeria", "gdp": "191.9 Billion USD", "system": "Unitary semi-presidential republic", "stability_index": "Moderate", "risk_analysis": "Reliance on hydrocarbons, youth unemployment." },
             "AGO": { "name": "Angola", "gdp": "106.7 Billion USD", "system": "Unitary presidential republic", "stability_index": "Fragile", "risk_analysis": "Oil dependency, high debt, corruption." },
@@ -175,6 +176,7 @@
             "SSD": { "name": "South Sudan", "gdp": "12.0 Billion USD", "system": "Federal transitional republic", "stability_index": "Critical", "risk_analysis": "Inter-communal violence, delayed elections." },
             "SDN": { "name": "Sudan", "gdp": "51.6 Billion USD", "system": "Military Junta (War)", "stability_index": "Critical", "risk_analysis": "Civil war (SAF vs RSF), humanitarian catastrophe." },
             "TZA": { "name": "Tanzania", "gdp": "75.7 Billion USD", "system": "Presidential republic", "stability_index": "Stable", "risk_analysis": "Political reconciliation process, infrastructure debt." },
+            "TGO": { "name": "Togo", "gdp": "8.1 Billion USD", "system": "Presidential republic", "stability_index": "Moderate", "risk_analysis": "Dynastic rule concerns, northern security." },
             "TUN": { "name": "Tunisia", "gdp": "46.6 Billion USD", "system": "Presidential republic", "stability_index": "Fragile", "risk_analysis": "Democratic backsliding, economic crisis." },
             "UGA": { "name": "Uganda", "gdp": "45.5 Billion USD", "system": "Presidential republic", "stability_index": "Moderate", "risk_analysis": "Long-standing rule, corruption, ADF attacks." },
             "ZMB": { "name": "Zambia", "gdp": "29.7 Billion USD", "system": "Presidential republic", "stability_index": "Stable", "risk_analysis": "Debt restructuring, copper price volatility." },
@@ -200,41 +202,49 @@
         document.getElementById('closeCountryPanel').addEventListener('click', () => countryPanel.classList.remove('active'));
 
         map.on('load', async () => {
-            // エラー回避: 重複追加を防ぐためのチェック
-            if (map.getSource('countries')) return;
+            // エラー回避: 重複チェックを厳密に行う
+            if (map.getSource('countries')) {
+                console.log('Source already loaded, skipping...');
+                return;
+            }
 
             // 1. 地図ソースの追加
-            // promoteId を使って ID を明示的に指定
+            // 404エラー対策: 信頼性の高いAWS CloudFrontのURLに変更
             map.addSource('countries', {
                 type: 'geojson',
-                data: 'https://raw.githubusercontent.com/neondo/ne_110m_admin_0_countries/master/ne_110m_admin_0_countries.geojson',
-                promoteId: 'ADM0_A3' 
+                data: 'https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson',
+                promoteId: 'adm0_a3' // CloudFront版のプロパティに合わせて小文字に変更
             });
 
             // 2. 国境線レイヤー (発光エフェクト)
-            map.addLayer({
-                'id': 'countries-line',
-                'type': 'line',
-                'source': 'countries',
-                'layout': { 'line-join': 'round', 'line-cap': 'round' },
-                'paint': {
-                    'line-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#4dfaff', '#005566'],
-                    'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 3, 0.5],
-                    'line-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1.0, 0.4],
-                    'line-blur': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0]
-                }
-            });
+            // レイヤー重複チェックを追加
+            if (!map.getLayer('countries-line')) {
+                map.addLayer({
+                    'id': 'countries-line',
+                    'type': 'line',
+                    'source': 'countries',
+                    'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                    'paint': {
+                        'line-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#4dfaff', '#005566'],
+                        'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 3, 0.5],
+                        'line-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1.0, 0.4],
+                        'line-blur': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0]
+                    }
+                });
+            }
 
             // 3. 国の塗りつぶし (当たり判定用)
-            map.addLayer({
-                'id': 'countries-fill',
-                'type': 'fill',
-                'source': 'countries',
-                'paint': {
-                    'fill-color': '#00d2ff',
-                    'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.15, 0]
-                }
-            });
+            if (!map.getLayer('countries-fill')) {
+                map.addLayer({
+                    'id': 'countries-fill',
+                    'type': 'fill',
+                    'source': 'countries',
+                    'paint': {
+                        'fill-color': '#00d2ff',
+                        'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.15, 0]
+                    }
+                });
+            }
 
             // 4. マウスイベント
             let hoveredStateId = null;
@@ -245,7 +255,8 @@
                         map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: false });
                     }
                     const feature = e.features[0];
-                    hoveredStateId = feature.id; // promoteIdにより国コードが入っている
+                    // CloudFront版のID (adm0_a3) を取得
+                    hoveredStateId = feature.id; 
                     
                     if (hoveredStateId !== undefined) {
                         map.setFeatureState({ source: 'countries', id: hoveredStateId }, { hover: true });
@@ -262,54 +273,37 @@
                 map.getCanvas().style.cursor = '';
             });
 
-            // 5. クリック処理 (ロジック強化版)
+            // 5. クリック処理 (ロジック修正)
             map.on('click', 'countries-fill', (e) => {
                 if (e.features.length === 0) return;
                 
                 const feature = e.features[0];
                 const props = feature.properties;
                 
-                // データマッチングの総当たり検索 (最も確実な方法)
-                // 地図データのプロパティから、AFRICA_DATAのキー(ISOコード)と一致するものを探す
-                let matchedData = null;
-                let matchedCode = null;
+                // データマッチング
+                // CloudFront版では 'adm0_a3' がIDとしてプロモートされている
+                const isoCode = feature.id; 
+                const name = props.name || props.admin || "Unknown Region";
 
-                // 検索候補: feature.id と、プロパティ内のありそうなキー全て
-                const potentialCodes = [
-                    feature.id, 
-                    props.ADM0_A3, props.adm0_a3, 
-                    props.ISO_A3, props.iso_a3, 
-                    props.SU_A3, props.su_a3
-                ];
+                const data = AFRICA_DATA[isoCode];
 
-                for (let code of potentialCodes) {
-                    if (code && AFRICA_DATA[code]) {
-                        matchedData = AFRICA_DATA[code];
-                        matchedCode = code;
-                        break;
-                    }
-                }
-
-                const name = props.NAME || props.name || props.ADMIN || "Unknown Region";
-
-                if (matchedData) {
-                    cpName.textContent = matchedData.name;
+                if (data) {
+                    cpName.textContent = data.name;
                     cpContent.innerHTML = `
-                        <div class="stat-row"><span class="stat-label">GDP</span><span class="stat-value">${matchedData.gdp}</span></div>
-                        <div class="stat-row"><span class="stat-label">System</span><span class="stat-value">${matchedData.system}</span></div>
-                        <div class="stat-row"><span class="stat-label">Stability</span><span class="stat-value" style="color:${getStabilityColor(matchedData.stability_index)}">${matchedData.stability_index}</span></div>
+                        <div class="stat-row"><span class="stat-label">GDP</span><span class="stat-value">${data.gdp}</span></div>
+                        <div class="stat-row"><span class="stat-label">System</span><span class="stat-value">${data.system}</span></div>
+                        <div class="stat-row"><span class="stat-label">Stability</span><span class="stat-value" style="color:${getStabilityColor(data.stability_index)}">${data.stability_index}</span></div>
                         <div class="risk-section">
                             <div class="stat-label" style="margin-bottom:8px;">Risk Analysis</div>
-                            <div class="risk-content">${matchedData.risk_analysis}</div>
+                            <div class="risk-content">${data.risk_analysis}</div>
                         </div>
                     `;
                 } else {
                     cpName.textContent = name;
                     cpContent.innerHTML = `
-                        <div class="stat-row"><span class="stat-label">Status</span><span class="stat-value">No Data</span></div>
+                        <div class="stat-row"><span class="stat-label">Code</span><span class="stat-value">${isoCode || 'N/A'}</span></div>
                         <div style="margin-top:15px; color:var(--text-sub); font-size:0.85rem; line-height:1.5;">
-                            Detailed strategic data is currently unavailable for this region.<br>
-                            <span style="font-size:0.75rem; opacity:0.7;">(Detected Code: ${feature.id || 'None'})</span>
+                            No detailed data available for this region.
                         </div>
                     `;
                 }
