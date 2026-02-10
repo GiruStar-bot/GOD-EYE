@@ -1,0 +1,47 @@
+{
+  "EGY": {
+    "name": "Egypt",
+    "gdp": "476.7 Billion USD (2022 est.)",
+    "population": "111 Million",
+    "system": "Unitary semi-presidential republic",
+    "stability_index": "Moderate",
+    "major_exports": "Crude Petroleum, Refined Petroleum, Gold",
+    "risk_analysis": "Inflation concerns, regional water disputes (Nile Dam)."
+  },
+  "NGA": {
+    "name": "Nigeria",
+    "gdp": "477.4 Billion USD (2022 est.)",
+    "population": "218 Million",
+    "system": "Federal presidential republic",
+    "stability_index": "Fragile",
+    "major_exports": "Crude Petroleum, Natural Gas",
+    "risk_analysis": "Internal security challenges in north, oil theft in delta."
+  },
+  "ZAF": {
+    "name": "South Africa",
+    "gdp": "405.9 Billion USD (2022 est.)",
+    "population": "60 Million",
+    "system": "Unitary dominant-party parliamentary republic",
+    "stability_index": "Moderate",
+    "major_exports": "Gold, Platinum, Cars, Iron Ore",
+    "risk_analysis": "Power shortages (load shedding), high unemployment."
+  },
+  "KEN": {
+    "name": "Kenya",
+    "gdp": "113.4 Billion USD (2022 est.)",
+    "population": "54 Million",
+    "system": "Unitary presidential republic",
+    "stability_index": "Stable",
+    "major_exports": "Tea, Cut Flowers, Refined Petroleum",
+    "risk_analysis": "Currency fluctuation, drought impact on agriculture."
+  },
+  "ETH": {
+    "name": "Ethiopia",
+    "gdp": "126.8 Billion USD (2022 est.)",
+    "population": "123 Million",
+    "system": "Federal parliamentary republic",
+    "stability_index": "Low",
+    "major_exports": "Coffee, Gold, Cut Flowers",
+    "risk_analysis": "Recovery from Tigray conflict, ethnic tensions."
+  }
+}
