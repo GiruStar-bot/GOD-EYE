@@ -140,7 +140,7 @@
             <h2>Live Intelligence</h2>
             <button class="toggle-btn" id="toggleSidebar">Close</button>
         </div>
-        <ul class="news-list" id="newsList"><li class="news-item" style="text-align:center;">Scanning...</li></ul>
+        <ul class="news-list" id="newsList"><li class="news-item" style="text-align:center;">No active alerts</li></ul>
     </aside>
 
     <!-- 国ステータスパネル -->
@@ -156,13 +156,10 @@
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script>
         // デモ用フォールバックデータ（リスクポイント用）
+        // 空にしてマーカーを非表示にする
         const FALLBACK_RISK = {
             "type": "FeatureCollection",
-            "features": [
-                { "type": "Feature", "geometry": { "type": "Point", "coordinates": [31.2357, 30.0444] }, "properties": { "name": "Simulation: Cairo Alert", "risk_level": "High", "url": "#", "source": "Intel Feed" } },
-                { "type": "Feature", "geometry": { "type": "Point", "coordinates": [3.3792, 6.5244] }, "properties": { "name": "Simulation: Lagos Security", "risk_level": "Medium", "url": "#", "source": "Intel Feed" } },
-                { "type": "Feature", "geometry": { "type": "Point", "coordinates": [29.23, -1.67] }, "properties": { "name": "Simulation: Goma Unrest", "risk_level": "Critical", "url": "#", "source": "Intel Feed" } }
-            ]
+            "features": []
         };
 
         // 地図初期化
@@ -360,6 +357,11 @@
         function plotRisks(geojson) {
             newsListEl.innerHTML = '';
             const features = geojson.features ? geojson.features.slice(0, 50) : [];
+            
+            if (features.length === 0) {
+                newsListEl.innerHTML = '<li class="news-item" style="text-align:center;">No active alerts</li>';
+                return;
+            }
 
             features.forEach(feature => {
                 const coords = feature.geometry.coordinates;
