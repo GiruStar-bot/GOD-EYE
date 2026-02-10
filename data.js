@@ -1,4 +1,4 @@
-// --- 1. 完全内蔵データベース ---
+// --- 1. アフリカ諸国データベース ---
 const AFRICA_DATA = {
     "DZA": { "name": "Algeria", "gdp": "191.9 Billion USD", "system": "Unitary semi-presidential republic", "stability_index": "Moderate", "risk_analysis": "Reliance on hydrocarbons, youth unemployment." },
     "AGO": { "name": "Angola", "gdp": "106.7 Billion USD", "system": "Unitary presidential republic", "stability_index": "Fragile", "risk_analysis": "Oil dependency, high debt, corruption." },
@@ -46,6 +46,7 @@ const AFRICA_DATA = {
 };
 
 // --- 2. 名前揺らぎ吸収用エイリアス辞書 ---
+// 地図データ上の名前(Key) -> 我々のデータベースのコード(Value)
 const COUNTRY_ALIASES = {
     "Dem. Rep. Congo": "COD",
     "Democratic Republic of the Congo": "COD",
